@@ -1,0 +1,354 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Attendance System</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f6fb;
+      color: #243047;
+    }
+    header {
+      background: #172b4d;
+      color: white;
+      padding: 22px 6%;
+    }
+    header h1 { margin: 0 0 6px; font-size: 25px; }
+    header p { margin: 0; color: #c9d5e8; }
+    main { max-width: 1100px; margin: 28px auto; padding: 0 20px; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .card, .panel {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 3px 14px #172b4d0c;
+    }
+    .card p { margin: 0 0 12px; color: #64748b; }
+    .card strong { font-size: 30px; }
+    .panel { margin-bottom: 20px; }
+    h2 { font-size: 19px; margin-top: 0; }
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    input, select, button {
+      padding: 11px 12px;
+      border-radius: 7px;
+      border: 1px solid #d6deea;
+      font: inherit;
+    }
+    input, select { background: white; min-width: 0; }
+    .form-row input { flex: 1; }
+    button {
+      border: 0;
+      background: #2463eb;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { opacity: .88; }
+    .secondary { background: #64748b; }
+    .danger { background: #dc3545; padding: 7px 10px; }
+    .present { color: #15803d; font-weight: bold; }
+    .absent { color: #dc2626; font-weight: bold; }
+    .late { color: #b77905; font-weight: bold; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 600px; }
+    th, td {
+      padding: 13px 10px;
+      border-bottom: 1px solid #e8edf4;
+      text-align: left;
+    }
+    th { color: #64748b; font-size: 13px; }
+    .empty { text-align: center; color: #64748b; padding: 25px; }
+    .note { font-size: 13px; color: #64748b; line-height: 1.5; }
+    footer { text-align: center; color: #64748b; padding: 25px; font-size: 13px; }
+    @media (max-width: 500px) {
+      main { padding: 0 12px; margin-top: 18px; }
+      .panel { padding: 15px; }
+      header { padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Student Attendance System</h1>
+    <p>Manage student information and daily attendance.</p>
+  </header>
+
+  <main>
+    <section class="cards">
+      <div class="card"><p>Total Students</p><strong id="total">0</strong></div>
+      <div class="card"><p>Present Today</p><strong id="presentCount">0</strong></div>
+      <div class="card"><p>Absent Today</p><strong id="absentCount">0</strong></div>
+      <div class="card"><p>Late Today</p><strong id="lateCount">0</strong></div>
+    </section>
+
+    <section class="panel">
+      <h2>Add Student</h2>
+      <form id="studentForm" class="form-row">
+        <input id="studentId" placeholder="Student ID" required>
+        <input id="studentName" placeholder="Full name" required>
+        <button type="submit">Add Student</button>
+      </form>
+      <p class="note">Student IDs must be unique. Sample records are not included.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Take Attendance</h2>
+      <div class="form-row">
+        <label for="attendanceDate">Date:</label>
+        <input id="attendanceDate" type="date" required>
+        <button type="button" class="secondary" id="todayButton">Today</button>
+      </div>
+      <div class="form-row">
+        <input id="search" placeholder="Search student ID or name">
+        <button type="button" id="markAll">Mark All Present</button>
+      </div>
+      <p class="note">Choose a status for each student. Attendance is saved for the selected date.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student ID</th>
+              <th>Student Name</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="studentTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Attendance Summary</h2>
+      <p id="summaryDate"></p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Student ID</th><th>Name</th><th>Status</th></tr>
+          </thead>
+          <tbody id="summaryTable"></tbody>
+        </table>
+      </div>
+      <button id="exportButton" type="button">Export Summary as CSV</button>
+    </section>
+  </main>
+
+  <footer>Student Attendance System | Academic Project</footer>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const STORAGE_KEY = "studentAttendanceSystemV1";
+
+    let students = [];
+    let attendance = {};
+
+    // Load saved records from this browser.
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      students = Array.isArray(saved.students) ? saved.students : [];
+      attendance = saved.attendance && typeof saved.attendance === "object"
+        ? saved.attendance : {};
+    } catch (error) {
+      students = [];
+      attendance = {};
+    }
+
+    function saveData() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ students, attendance }));
+      } catch (error) {
+        alert("Could not save data. Check your browser storage.");
+      }
+    }
+
+    function getDate() {
+      return $("attendanceDate").value;
+    }
+
+    function getStatus(studentId) {
+      return attendance[getDate()]?.[studentId] || "Unmarked";
+    }
+
+    function setStatus(studentId, status) {
+      const date = getDate();
+      if (!date) return alert("Please choose a date first.");
+      if (!attendance[date]) attendance[date] = {};
+      attendance[date][studentId] = status;
+      saveData();
+      render();
+    }
+
+    $("studentForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      const id = $("studentId").value.trim();
+      const name = $("studentName").value.trim();
+
+      if (students.some(student => student.id.toLowerCase() === id.toLowerCase())) {
+        return alert("That student ID already exists.");
+      }
+
+      students.push({ id, name });
+      saveData();
+      $("studentForm").reset();
+      render();
+    });
+
+    $("attendanceDate").value =
+      new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+        .toISOString().slice(0, 10);
+
+    $("attendanceDate").addEventListener("change", render);
+    $("search").addEventListener("input", render);
+    $("todayButton").addEventListener("click", () => {
+      $("attendanceDate").value =
+        new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+          .toISOString().slice(0, 10);
+      render();
+    });
+
+    $("markAll").addEventListener("click", () => {
+      if (!getDate()) return alert("Please choose a date first.");
+      if (!attendance[getDate()]) attendance[getDate()] = {};
+      students.forEach(student => {
+        attendance[getDate()][student.id] = "Present";
+      });
+      saveData();
+      render();
+    });
+
+    function render() {
+      const date = getDate();
+      const query = $("search").value.toLowerCase();
+
+      const counts = { Present: 0, Absent: 0, Late: 0 };
+      students.forEach(student => {
+        const status = getStatus(student.id);
+        if (counts[status] !== undefined) counts[status]++;
+      });
+
+      $("total").textContent = students.length;
+      $("presentCount").textContent = counts.Present;
+      $("absentCount").textContent = counts.Absent;
+      $("lateCount").textContent = counts.Late;
+      $("summaryDate").textContent = "Attendance for " + date;
+
+      const visibleStudents = students.filter(student =>
+        student.id.toLowerCase().includes(query) ||
+        student.name.toLowerCase().includes(query)
+      );
+
+      $("studentTable").innerHTML = "";
+
+      if (visibleStudents.length === 0) {
+        $("studentTable").innerHTML =
+          '<tr><td colspan="4" class="empty">No students found. Add a student above.</td></tr>';
+      }
+
+      visibleStudents.forEach(student => {
+        const row = document.createElement("tr");
+
+        const idCell = document.createElement("td");
+        idCell.textContent = student.id;
+
+        const nameCell = document.createElement("td");
+        nameCell.textContent = student.name;
+
+        const statusCell = document.createElement("td");
+        const select = document.createElement("select");
+
+        ["Unmarked", "Present", "Absent", "Late"].forEach(status => {
+          const option = document.createElement("option");
+          option.value = status;
+          option.textContent = status;
+          select.appendChild(option);
+        });
+
+        select.value = getStatus(student.id);
+        select.addEventListener("change", () => setStatus(student.id, select.value));
+        statusCell.appendChild(select);
+
+        const actionCell = document.createElement("td");
+        const deleteButton = document.createElement("button");
+        deleteButton.textContent = "Delete";
+        deleteButton.className = "danger";
+        deleteButton.addEventListener("click", () => {
+          if (!confirm("Delete " + student.name + "? Their attendance history will also be removed.")) return;
+          students = students.filter(item => item.id !== student.id);
+          Object.values(attendance).forEach(day => delete day[student.id]);
+          saveData();
+          render();
+        });
+        actionCell.appendChild(deleteButton);
+
+        row.append(idCell, nameCell, statusCell, actionCell);
+        $("studentTable").appendChild(row);
+      });
+
+      $("summaryTable").innerHTML = "";
+
+      if (students.length === 0) {
+        $("summaryTable").innerHTML =
+          '<tr><td colspan="3" class="empty">No attendance records yet.</td></tr>';
+      }
+
+      students.forEach(student => {
+        const row = document.createElement("tr");
+        const status = getStatus(student.id);
+        const values = [student.id, student.name, status];
+
+        values.forEach((value, index) => {
+          const cell = document.createElement("td");
+          cell.textContent = value;
+          if (index === 2 && ["Present", "Absent", "Late"].includes(status)) {
+            cell.className = status.toLowerCase();
+          }
+          row.appendChild(cell);
+        });
+
+        $("summaryTable").appendChild(row);
+      });
+    }
+
+    $("exportButton").addEventListener("click", () => {
+      const date = getDate();
+      const rows = [["Student ID", "Student Name", "Date", "Status"]];
+
+      students.forEach(student => {
+        rows.push([student.id, student.name, date, getStatus(student.id)]);
+      });
+
+      // Escape CSV special characters safely.
+      const csv = rows.map(row => row.map(value =>
+        '"' + String(value).replace(/"/g, '""') + '"'
+      ).join(",")).join("\r\n");
+
+      const blob = new Blob(["\uFEFF" + csv], {
+        type: "text/csv;charset=utf-8;"
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "attendance-" + date + ".csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    render();
+  </script>
+</body>
+</html>
